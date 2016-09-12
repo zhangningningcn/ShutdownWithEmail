@@ -10,6 +10,7 @@ import getpass, poplib
 import re
 import base64
 import time
+from datetime import datetime
 import os
 import sys
 from tkinter import *
@@ -26,6 +27,11 @@ cmdmailaddr = None
 cmdstr = None
 checkinterval = None
 
+ReadConfState = {
+    0:"ok",
+    1:"读取配置参数失败，\n请配置shutdown.conf",
+    2:"checkinterval 需要配置成整数"
+}
 
 def readconf():
     #return "ok"
@@ -49,7 +55,7 @@ checkinterval=600
         """
         f.write(writestr)
         f.close()
-        return "读取配置参数失败，\n请配置shutdown.conf"
+        return 1
     while True:
         line = f.readline()
         if not line:
@@ -73,18 +79,20 @@ checkinterval=600
        cmdmailaddr = None
 
     if (mailaddr == None) or (pop3addr == None) or (mailpasswd == None):
-        return "读取配置参数失败，\n请配置shutdown.conf"
+        return 1
     if cmdmailaddr == None or cmdstr == None or checkinterval == None:
-        return "读取配置参数失败，\n请配置shutdown.conf"
+        return 1
     try:
         checkinterval = int(checkinterval)
     except:
-        return "checkinterval 需要配置成整数"
-    return "ok";
+        return 2
+    return 0;
 
 def getmail():
     print("run " + time.strftime('%H:%M:%S',time.localtime()))
     #return 0
+    log = open("log.txt","a")
+    log.write(datetime.now().strftime("%y-%m-%d %H:%M:%S:" + os.linesep))
     maillist = []
     try:
         #这个文件保存邮件UID，用于判断邮件之前是否读取过
@@ -100,18 +108,24 @@ def getmail():
         M.user(mailaddr)
         M.pass_(mailpasswd)
     except:
+        log.write("读取邮件失败." + os.linesep)
+        log.close()
         return 1
+    log.write("读取邮件成功." + os.linesep)
     uidl = M.uidl()[1]
     uidl = {i.decode("ascii").split(" ")[1]:i.decode("ascii").split(" ")[0] for i in uidl}
     tempuidl = [i for i in uidl]
     subuidl = set(tempuidl) - set(maillist)
     mlist = M.list()[1]
     mlist = {i.decode("ascii").split(" ")[0]:i.decode("ascii").split(" ")[1] for i in mlist}
-    print(mlist)
-
+    #print(mlist)
     pattern = re.compile(r"Received.*from\s*<(.*)>")#.from\s*<()>
     state = 1
     maildatestr = ""
+    if subuidl:
+        log.write("有" + str(len(subuidl)) + "封新邮件." + os.linesep)
+    else:
+        log.write("没有新邮件." + os.linesep)
     for uid in subuidl:
         i = uidl[uid]
         #大于100k的邮件不处理
@@ -146,6 +160,7 @@ def getmail():
                             break
         if shutdown:
             os.system("shutdown -s -t 300")
+            log.write("关机." + os.linesep)
             break
     M.quit()
     if subuidl:
@@ -158,7 +173,10 @@ def getmail():
             f.write(pre)
             f.close()
         except:
+            log.write("更新maillist失败." + os.linesep)
+            log.close()
             return 2
+    log.close()
     return 0
 
 class BackConnTimer(threading.Thread):
@@ -196,10 +214,10 @@ def runbackup():
     global root,b_runbackguound,user32,keyinfo
     if not user32.RegisterHotKey(None, 99, win32con.MOD_CONTROL, win32con.VK_F7):
         keyinfo["text"] = "无法注册快捷键Ctrl+F7"
+        return
     else:
         keyinfo["text"] = "Ctrl+F7调回前台"
         #messagebox.showerror("无法后台运行","注册热键失败")
-        return
     root.destroy()
     b_runbackguound = True
 
@@ -220,28 +238,40 @@ if __name__ == "__main__":
     global root,b_runbackguound,guidisplay,user32,tmnow,disinfo,keyinfo
 
     user32 = ctypes.windll.user32
-    confstr = readconf()
-    if confstr == "ok":
-        #confstr = "关机程序已运行"
-        res = getmail()
-        if res == 0:
-           tmnow = time.localtime()
-           confstr = "最后一次查询时间 " + time.strftime('%H:%M:%S',tmnow)
-           delay1 = checkinterval*1000
-        elif res == 1:
-           confstr = '读取邮件失败'
-        elif res == 2:
-            confstr = '写文件失败'
-    else:
-        delay1 = -1
-    guidisplay = True
-    
+    log = open("log.txt","a")
+    log.write(datetime.now().strftime("%y-%m-%d %H:%M:%S:") + os.linesep)
+    logstr = "程序启动:"
+    for s in sys.argv:
+        logstr += ' ' + s
+    log.write(logstr + os.linesep)
+
     start_s = False
     if len(sys.argv) == 2:
        if sys.argv[1] == "-s":
           start_s = True
-          
-    while guidisplay:
+
+    confstr = readconf()
+    if confstr == 0:
+        #confstr = "关机程序已运行"
+        res = getmail()
+        if res == 0:
+           tmnow = time.localtime()
+           infostr = "最后一次查询时间 " + time.strftime('%H:%M:%S',tmnow)
+           delay1 = checkinterval*1000
+        elif res == 1:
+           infostr = '读取邮件失败'
+        elif res == 2:
+            infostr = '写文件失败'
+    else:
+        delay1 = -1
+        infostr = ReadConfState[confstr]
+
+    guidisplay = True
+    log.write(ReadConfState[confstr] + os.linesep)
+    log.close()
+
+    logstr = None
+    while guidisplay or delay1 < 0:
         b_runbackguound = False
         guidisplay = False
         keyerror = False
@@ -249,12 +279,12 @@ if __name__ == "__main__":
         if start_s:
             b_runbackguound = True
             start_s = False
-            
+
         if b_runbackguound:
             if not user32.RegisterHotKey(None, 99, win32con.MOD_CONTROL, win32con.VK_F7):
                 b_runbackguound = False
                 keyerror = True
-                
+
         if not b_runbackguound:
             root = Tk()
             if delay1 >= 0:
@@ -264,10 +294,11 @@ if __name__ == "__main__":
             root.title("shutdown")
             root.geometry('200x100')                 #是x 不是*
             root.resizable(width=False, height=True) #宽不可变, 高可变,默认为True
-            disinfo = Message(root, text=confstr,width = 150, font=('Arial', 10))
+            disinfo = Message(root, text=infostr,width = 150, font=('Arial', 10))
             disinfo.pack()
             if delay1 < 0:
                 Button(root, text="后台运行", state = "disabled").pack()
+                delay1 = 0
             else:
                 Button(root, text="后台运行", command = runbackup).pack()
             keyinfo = Message(root, text="Ctrl+F7调回前台",width = 150, font=('Arial', 10))
@@ -276,7 +307,6 @@ if __name__ == "__main__":
                 keyinfo["text"] = "无法注册快捷键Ctrl+F7"
             root.mainloop()
 
-            
         if b_runbackguound:
             backrun = BackConnTimer()
             backrun.setastgetmail(tmnow)
@@ -290,7 +320,7 @@ if __name__ == "__main__":
                             guidisplay = True
                             delay1 = time.mktime(time.localtime()) - time.mktime(backrun.getlastgetmail())
                             delay1 = (checkinterval - int(delay1))*1000
-                            confstr = backrun.getconfstr()
+                            infostr = backrun.getconfstr()
                             backrun.stopthread()
                             break
                     user32.TranslateMessage(ctypes.byref(msg))

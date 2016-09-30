@@ -92,7 +92,7 @@ def getmail():
     print("run " + time.strftime('%H:%M:%S',time.localtime()))
     #return 0
     log = open("log.txt","a")
-    log.write(datetime.now().strftime("%y-%m-%d %H:%M:%S:" + os.linesep))
+    log.write(datetime.now().strftime("%y-%m-%d %H:%M:%S:\n"))
     maillist = []
     try:
         #这个文件保存邮件UID，用于判断邮件之前是否读取过
@@ -108,10 +108,10 @@ def getmail():
         M.user(mailaddr)
         M.pass_(mailpasswd)
     except:
-        log.write("读取邮件失败." + os.linesep)
+        log.write("读取邮件失败.\n")
         log.close()
         return 1
-    log.write("读取邮件成功." + os.linesep)
+    log.write("读取邮件成功.\n")
     uidl = M.uidl()[1]
     uidl = {i.decode("ascii").split(" ")[1]:i.decode("ascii").split(" ")[0] for i in uidl}
     tempuidl = [i for i in uidl]
@@ -123,9 +123,9 @@ def getmail():
     state = 1
     maildatestr = ""
     if subuidl:
-        log.write("有" + str(len(subuidl)) + "封新邮件." + os.linesep)
+        log.write("有" + str(len(subuidl)) + "封新邮件.\n")
     else:
-        log.write("没有新邮件." + os.linesep)
+        log.write("没有新邮件.\n")
     for uid in subuidl:
         i = uidl[uid]
         #大于100k的邮件不处理
@@ -155,12 +155,13 @@ def getmail():
                         # '#'后面的字符串忽略
                         if '#' in strmsg:
                             strmsg = strmsg[:strmsg.index("#")]
+                        strmsg = strmsg.strip()
                         if strmsg == cmdstr:
                             shutdown = True
                             break
         if shutdown:
             os.system("shutdown -s -t 300")
-            log.write("关机." + os.linesep)
+            log.write("关机.\n")
             break
     M.quit()
     if subuidl:
@@ -173,7 +174,7 @@ def getmail():
             f.write(pre)
             f.close()
         except:
-            log.write("更新maillist失败." + os.linesep)
+            log.write("更新maillist失败.\n")
             log.close()
             return 2
     log.close()
@@ -239,16 +240,16 @@ if __name__ == "__main__":
 
     user32 = ctypes.windll.user32
     log = open("log.txt","a")
-    log.write(datetime.now().strftime("%y-%m-%d %H:%M:%S:") + os.linesep)
+    log.write(datetime.now().strftime("%y-%m-%d %H:%M:%S:") + '\n')
     logstr = "程序启动:"
     for s in sys.argv:
         logstr += ' ' + s
-    log.write(logstr + os.linesep)
+    log.write(logstr + '\n')
 
-    start_s = False
-    if len(sys.argv) == 2:
-       if sys.argv[1] == "-s":
-          start_s = True
+    start_s = True
+    # if len(sys.argv) == 2:
+       # if sys.argv[1] == "-s":
+          # start_s = True
 
     confstr = readconf()
     if confstr == 0:
@@ -265,13 +266,14 @@ if __name__ == "__main__":
     else:
         delay1 = -1
         infostr = ReadConfState[confstr]
+        start_s = False
 
     guidisplay = True
-    log.write(ReadConfState[confstr] + os.linesep)
+    log.write(ReadConfState[confstr] + "\n")
     log.close()
 
     logstr = None
-    while guidisplay or delay1 < 0:
+    while guidisplay:
         b_runbackguound = False
         guidisplay = False
         keyerror = False
@@ -298,7 +300,6 @@ if __name__ == "__main__":
             disinfo.pack()
             if delay1 < 0:
                 Button(root, text="后台运行", state = "disabled").pack()
-                delay1 = 0
             else:
                 Button(root, text="后台运行", command = runbackup).pack()
             keyinfo = Message(root, text="Ctrl+F7调回前台",width = 150, font=('Arial', 10))
@@ -318,8 +319,8 @@ if __name__ == "__main__":
                     if msg.message == win32con.WM_HOTKEY:
                         if msg.wParam == 99:
                             guidisplay = True
-                            delay1 = time.mktime(time.localtime()) - time.mktime(backrun.getlastgetmail())
-                            delay1 = (checkinterval - int(delay1))*1000
+                            tmnow = time.mktime(time.localtime()) - time.mktime(backrun.getlastgetmail())
+                            delay1 = (checkinterval - int(tmnow))*1000
                             infostr = backrun.getconfstr()
                             backrun.stopthread()
                             break

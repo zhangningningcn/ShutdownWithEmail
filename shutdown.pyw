@@ -321,6 +321,8 @@ if __name__ == "__main__":
                             guidisplay = True
                             tmnow = time.mktime(time.localtime()) - time.mktime(backrun.getlastgetmail())
                             delay1 = (checkinterval - int(tmnow))*1000
+                            tmnow = time.gmtime(time.time() - tmnow - time.timezone)
+                            
                             infostr = backrun.getconfstr()
                             backrun.stopthread()
                             break
